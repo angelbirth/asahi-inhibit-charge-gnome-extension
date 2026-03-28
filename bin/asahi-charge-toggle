@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TARGET="/sys/class/power_supply/macsmc-battery/charge_behaviour"
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 on|off" >&2
+  exit 2
+fi
+
+case "$1" in
+  on)
+    echo "inhibit-charge" > "$TARGET"
+    ;;
+  off)
+    echo "auto" > "$TARGET"
+    ;;
+  *)
+    echo "Usage: $0 on|off" >&2
+    exit 2
+    ;;
+esac
