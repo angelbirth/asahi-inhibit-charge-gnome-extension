@@ -1,0 +1,7 @@
+{
+  "uuid": "asahi-charge-toggle@example.com",
+  "name": "Asahi Charge Toggle",
+  "description": "Toggle inhibit-charge on Asahi Linux",
+  "shell-version": ["49"],
+  "version": 1
+}
