@@ -16,8 +16,8 @@ const ChargeToggle = GObject.registerClass(
         toggleMode: true,
       });
 
-      this.connect("toggled", (toggle, checked) => {
-        let state = checked ? "on" : "off";
+      this.connect("clicked", () => {
+        let state = this.checked ? "on" : "off";
 
         try {
           GLib.spawn_command_line_async(
@@ -36,7 +36,9 @@ const ChargeToggle = GObject.registerClass(
         );
         const [, bytes] = file.load_contents(null);
         const text = new TextDecoder().decode(bytes).trim();
-        this.checked = text === "inhibit-charge";
+        log(`charge_behaviour: ${text}`);
+        // Active mode is wrapped in brackets, e.g. "auto [inhibit-charge]"
+        this.checked = text.includes("[inhibit-charge]");
       } catch (e) {
         log(`failed to read charge behaviour: ${e}`);
       }
