@@ -1,57 +1,82 @@
-import {
-  QuickToggle,
-  SystemIndicator,
-} from "resource:///org/gnome/shell/ui/quickSettings.js";
+import GObject from "gi://GObject";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import * as QuickSettings from "resource:///org/gnome/shell/ui/quickSettings.js";
 import GLib from "gi://GLib";
+import Gio from "gi://Gio";
 
-class ChargeToggle extends QuickToggle {
-  constructor() {
-    super({
-      title: "Charge Limit",
-      iconName: "battery-symbolic",
-      toggleMode: true,
-    });
+const { QuickToggle, SystemIndicator } = QuickSettings;
 
-    this.connect("clicked", () => {
-      this.checked = !this.checked;
+// ✅ Toggle
+const ChargeToggle = GObject.registerClass(
+  class ChargeToggle extends QuickToggle {
+    _init() {
+      super._init({
+        title: "Charge Limit",
+        iconName: "battery-symbolic",
+        toggleMode: true,
+      });
 
-      if (this.checked) {
-        this._runCommand("on");
-      } else {
-        this._runCommand("off");
-      }
-    });
-  }
+      this.connect("toggled", (toggle, checked) => {
+        let state = checked ? "on" : "off";
 
-  _runCommand(state) {
-    try {
-      GLib.spawn_command_line_async(
-        `/usr/bin/sudo /usr/local/bin/asahi-charge-toggle ${state}`,
-      );
-    } catch (e) {
-      log(`Failed to run command: ${e}`);
+        try {
+          GLib.spawn_command_line_async(
+            `/usr/bin/sudo /usr/local/bin/asahi-charge-toggle ${state}`,
+          );
+        } catch (e) {
+          log(`Command failed: ${e}`);
+        }
+      });
     }
-  }
-}
 
-class Indicator extends SystemIndicator {
-  constructor() {
-    super();
+    _syncState() {
+      try {
+        const file = Gio.File.new_for_path(
+          "/sys/class/power_supply/macsmc-battery/charge_behaviour",
+        );
+        const [, bytes] = file.load_contents(null);
+        const text = new TextDecoder().decode(bytes).trim();
+        this.checked = text === "inhibit-charge";
+      } catch (e) {
+        log(`failed to read charge behaviour: ${e}`);
+      }
+    }
+  },
+);
 
-    this._toggle = new ChargeToggle();
-    this.quickSettingsItems.push(this._toggle);
-  }
-}
+// ✅ Indicator (INI YANG ERROR TADI)
+const Indicator = GObject.registerClass(
+  class Indicator extends SystemIndicator {
+    _init() {
+      super._init();
+
+      this._toggle = new ChargeToggle();
+      this.quickSettingsItems.push(this._toggle);
+    }
+  },
+);
 
 export default class Extension {
   enable() {
     this._indicator = new Indicator();
+
+    // GNOME 45–49 safe way
     Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
+    this._indicator._toggle._syncState();
+    this._syncId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
+      this._indicator._toggle._syncState();
+      return GLib.SOURCE_CONTINUE;
+    });
   }
 
   disable() {
-    this._indicator.destroy();
-    this._indicator = null;
+    if (this._indicator) {
+      this._indicator.destroy();
+      this._indicator = null;
+    }
+    if (this._syncId) {
+      GLib.Source.remove(this._syncId);
+      this._syncId = null;
+    }
   }
 }
