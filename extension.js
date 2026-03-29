@@ -36,7 +36,6 @@ const ChargeToggle = GObject.registerClass(
         );
         const [, bytes] = file.load_contents(null);
         const text = new TextDecoder().decode(bytes).trim();
-        log(`charge_behaviour: ${text}`);
         // Active mode is wrapped in brackets, e.g. "auto [inhibit-charge]"
         this.checked = text.includes("[inhibit-charge]");
       } catch (e) {
@@ -46,7 +45,6 @@ const ChargeToggle = GObject.registerClass(
   },
 );
 
-// ✅ Indicator (INI YANG ERROR TADI)
 const Indicator = GObject.registerClass(
   class Indicator extends SystemIndicator {
     _init() {
@@ -60,9 +58,9 @@ const Indicator = GObject.registerClass(
 
 export default class Extension {
   enable() {
+    if (this._indicator) return;
     this._indicator = new Indicator();
 
-    // GNOME 45–49 safe way
     Main.panel.statusArea.quickSettings.addExternalIndicator(this._indicator);
     this._indicator._toggle._syncState();
     this._syncId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
@@ -73,6 +71,7 @@ export default class Extension {
 
   disable() {
     if (this._indicator) {
+      this._indicator.quickSettingsItems.forEach((item) => item.destroy());
       this._indicator.destroy();
       this._indicator = null;
     }
